@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Phone, PhoneOff, UserCircle } from 'lucide-react';
 import io from "socket.io-client";
 
-const socket = io("http://localhost:5000");
+const socket = io("https://secure-call-7uae.onrender.com");
 
 // Replace these with your Cloudinary details.
 const CLOUDINARY_UPLOAD_URL = "https://api.cloudinary.com/v1_1/dazgjfmbe/upload";
@@ -115,7 +115,7 @@ export default function Home() {
       const data = await response.json();
       console.log("Cloudinary response:", data);
       if (data.secure_url) {
-        const backendResponse = await fetch("http://localhost:5000/saveRecording", {
+        const backendResponse = await fetch("https://secure-call-7uae.onrender.com/saveRecording", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ cloudinaryUrl: data.secure_url }),
@@ -265,36 +265,103 @@ export default function Home() {
 
 
   return (
-    <div>
-      <h1>Realtime Chat App</h1>
-      <p>Your ID: {userId}</p>
-      <h2>Online Users</h2>
-      <ul>
-        {Object.keys(onlineUsers).map((key) => (
-          <li key={key}>
-            {key}
-            {!callActive && (
-              <button onClick={() => callUser(key)}>Call</button>
-            )}
-          </li>
-        ))}
-      </ul>
-      {incomingCall && (
-        <div>
-          <p>Incoming call from {incomingCall.callerId}</p>
-          <button onClick={answerCall}>Answer</button>
-          <button onClick={declineCall}>Decline</button>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-5">
+    <div className="w-full max-w-md bg-white rounded-lg shadow-lg overflow-hidden">
+      {/* Header with User ID */}
+      <div className="border-b border-gray-200 p-6">
+        <div className="flex items-center justify-center space-x-2">
+          <UserCircle className="h-6 w-6 text-blue-500" />
+          <h1 className="text-xl font-bold text-gray-900">Your ID: {userId}</h1>
         </div>
-      )}
-      {callActive && (
-        <div>
-          <p>Call active</p>
-          <button onClick={endCall}>End Call</button>
+      </div>
+
+      {/* Online Users List */}
+      <div className="p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Online Users</h2>
+        <div className="space-y-2">
+          {Object.entries(onlineUsers)
+            .filter(([id]) => id !== userId)
+            .map(([id]) => (
+              <div
+                key={id}
+                className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-blue-500 transition-all duration-200"
+              >
+                <span className="text-gray-700">{id}</span>
+                <button
+                  onClick={() => callUser(id)}
+                  className="flex items-center space-x-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md transition-colors"
+                >
+                  <Phone className="h-4 w-4" />
+                  <span>Call</span>
+                </button>
+              </div>
+            ))}
         </div>
-      )}
-      <h2>Recording Data</h2>
-      <p>Transcription: {recordingData.transcription}</p>
-      <p>Refined Transcription: {recordingData.refinedTranscription}</p>
+
+        {/* Incoming Call Alert */}
+        {incomingCall && (
+          <div className="mt-6 p-4 bg-white border-2 border-blue-500 rounded-lg">
+            <h3 className="text-gray-900 font-semibold text-center mb-3">
+              Incoming Call from {incomingCall.callerId}
+            </h3>
+            <div className="flex justify-center space-x-3">
+              <button
+                onClick={answerCall}
+                className="flex items-center space-x-1 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md transition-colors"
+              >
+                <Phone className="h-4 w-4" />
+                <span>Answer</span>
+              </button>
+              <button
+                onClick={declineCall}
+                className="flex items-center space-x-1 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md transition-colors"
+              >
+                <PhoneOff className="h-4 w-4" />
+                <span>Decline</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Active Call Status */}
+        {callActive && (
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="text-blue-700 font-semibold text-center mb-3">
+              Call in progress...
+            </h3>
+            <div className="flex justify-center">
+              <button
+                onClick={() => endCall(true)}
+                className="flex items-center space-x-1 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md transition-colors"
+              >
+                <PhoneOff className="h-4 w-4" />
+                <span>End Call</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Recording Data (Cumulative Transcript) */}
+        {(recordingData.transcription || recordingData.refinedTranscription) && (
+          <div className="mt-6 space-y-4">
+            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <h3 className="text-gray-900 font-semibold mb-2">Call Transcription:</h3>
+              <pre className="bg-white p-3 rounded-md text-sm text-gray-700 overflow-auto border border-gray-200">
+                {recordingData.transcription}
+              </pre>
+            </div>
+            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <h3 className="text-gray-900 font-semibold mb-2">
+                Refined Transcription (Gemini AI):
+              </h3>
+              <pre className="bg-white p-3 rounded-md text-sm text-gray-700 overflow-auto border border-gray-200">
+                {recordingData.refinedTranscription}
+              </pre>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
+  </div>
   );
 }
