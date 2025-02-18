@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Phone, PhoneOff, UserCircle } from "lucide-react";
 import io from "socket.io-client";
+import ReactMarkdown from "react-markdown";
 
 const socket = io("https://secure-call-7uae.onrender.com");
 
@@ -16,9 +17,15 @@ export default function Home() {
   const [onlineUsers, setOnlineUsers] = useState({});
   const [incomingCall, setIncomingCall] = useState(null);
   const [callActive, setCallActive] = useState(false);
-  const [recordingData, setRecordingData] = useState({ transcription: "", refinedTranscription: "" });
+  const [recordingData, setRecordingData] = useState({
+    transcription: "",
+    refinedTranscription: "",
+    scamAnalysis: "",
+  });
   const [isCaller, setIsCaller] = useState(false);
   const [targetUser, setTargetUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [scamAlert, setScamAlert] = useState(null);
 
   const localStreamRef = useRef(null);
   const peerConnections = useRef({});
@@ -27,6 +34,16 @@ export default function Home() {
   const mediaRecorder = useRef(null);
   const recordedChunks = useRef([]);
   const remoteAudioRef = useRef(null); // Persistent ref for remote audio playback
+
+  // Auto-dismiss scam alert after 10 seconds
+  useEffect(() => {
+    if (scamAlert) {
+      const timer = setTimeout(() => {
+        setScamAlert(null);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [scamAlert]);
 
   useEffect(() => {
     socket.emit("register-user", userId);
@@ -105,6 +122,7 @@ export default function Home() {
   };
 
   const uploadRecording = async (blob) => {
+    setIsLoading(true);
     const formData = new FormData();
     formData.append("file", blob, `recording-${userId}.webm`);
     formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
@@ -126,8 +144,34 @@ export default function Home() {
           setRecordingData({
             transcription: backendData.recording.transcription,
             refinedTranscription: backendData.recording.refinedTranscription,
+            scamAnalysis: backendData.recording.scamAnalysis,
           });
           console.log("Recording processed successfully:", backendData);
+          console.log("scamAnalysis", backendData.recording.scamAnalysis);
+
+          // Parse scam likelihood from scamAnalysis text.
+          const scamText = backendData.recording.scamAnalysis;
+          const regex = /\*\*Scam Likelihood\*\*:\s*([0-9]+)%/i;
+
+          console.log("Regex:", regex);
+          const match = scamText.match(regex);
+          console.log("Match:", match);
+          
+          if (match && match[1]) {
+            const likelihood = parseInt(match[1]);
+            console.log("Likelihood:", likelihood);
+            if (likelihood >= 50) {
+              setScamAlert({
+                severity: "warning",
+                message: "Warning: This call has a high likelihood of being a scam!",
+              });
+            } else {
+              setScamAlert({
+                severity: "success",
+                message: "This call appears safe.",
+              });
+            }
+          }
         } else {
           console.error("Backend processing failed", backendData);
         }
@@ -136,6 +180,8 @@ export default function Home() {
       }
     } catch (error) {
       console.error("Error processing recording:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -157,7 +203,9 @@ export default function Home() {
 
     let localStream;
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true } });
+      localStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true },
+      });
     } catch (err) {
       console.error("Error accessing audio:", err);
       alert("Unable to access microphone");
@@ -222,7 +270,9 @@ export default function Home() {
 
     let localStream;
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true } });
+      localStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true },
+      });
     } catch (err) {
       console.error("Error accessing audio:", err);
       alert("Unable to access microphone");
@@ -290,7 +340,28 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-5">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-5 relative">
+      {/* Loader Overlay */}
+      {isLoading && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-50">
+          <div className="p-6 bg-white rounded shadow flex flex-col items-center">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
+            <p className="mt-4 text-gray-700">Processing call analysis...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Scam Alert Popup */}
+      {scamAlert && (
+        <div
+          className={`fixed top-4 right-4 z-50 p-4 rounded shadow ${
+            scamAlert.severity === "warning" ? "bg-red-500" : "bg-green-500"
+          } text-white`}
+        >
+          {scamAlert.message}
+        </div>
+      )}
+
       <div className="w-full max-w-md bg-white rounded-lg shadow-lg overflow-hidden">
         {/* Header with User ID */}
         <div className="border-b border-gray-200 p-6">
@@ -366,8 +437,10 @@ export default function Home() {
             </div>
           )}
 
-          {/* Recording Data (Cumulative Transcript) */}
-          {(recordingData.transcription || recordingData.refinedTranscription) && (
+          {/* Recording Data (Transcripts & Scam Analysis) */}
+          {(recordingData.transcription ||
+            recordingData.refinedTranscription ||
+            recordingData.scamAnalysis) && (
             <div className="mt-6 space-y-4">
               <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <h3 className="text-gray-900 font-semibold mb-2">Call Transcription:</h3>
@@ -376,12 +449,16 @@ export default function Home() {
                 </pre>
               </div>
               <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <h3 className="text-gray-900 font-semibold mb-2">
-                  Refined Transcription (Gemini AI):
-                </h3>
+                <h3 className="text-gray-900 font-semibold mb-2">Refined Transcription:</h3>
                 <pre className="bg-white p-3 rounded-md text-sm text-gray-700 overflow-auto border border-gray-200">
-                  {recordingData.refinedTranscription}
+                 <ReactMarkdown className="prose prose-sm">{recordingData.refinedTranscription}</ReactMarkdown> 
                 </pre>
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <h3 className="text-gray-900 font-semibold mb-2">Scam Analysis:</h3>
+                <ReactMarkdown className="prose prose-sm">
+                  {recordingData.scamAnalysis}
+                </ReactMarkdown>
               </div>
             </div>
           )}
