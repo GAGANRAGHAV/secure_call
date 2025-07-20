@@ -2,6 +2,9 @@
 
 Secure Call is a real-time, secure voice calling application designed to facilitate peer-to-peer audio communication with enhanced security and scam detection features. This project integrates modern web technologies to record and process calls, transcribe audio in multiple languages, and utilize advanced AI (Gemini AI) to analyze call content for potential scam indicators.
 
+
+<img width="1473" height="604" alt="image" src="https://github.com/user-attachments/assets/5c0739a0-5231-4e48-9260-70638c2551dc" />
+
 ## Table of Contents
 
 - [Overview](#overview)
